@@ -1,0 +1,62 @@
+import express from "express";
+import { createServer as createViteServer } from "vite";
+import path from "path";
+import cors from "cors";
+import db, { initDb } from "./database.ts";
+
+async function startServer() {
+  const app = express();
+  const PORT = 3000;
+
+  // Initialize Database
+  initDb();
+
+  app.use(cors());
+  app.use(express.json());
+
+  // API Routes
+  app.get("/api/profile", (req, res) => {
+    const profile = db.prepare("SELECT * FROM profile LIMIT 1").get();
+    res.json(profile);
+  });
+
+  app.get("/api/experiences", (req, res) => {
+    const experiences = db.prepare("SELECT * FROM experiences").all();
+    res.json(experiences);
+  });
+
+  app.get("/api/skills", (req, res) => {
+    const skills = db.prepare("SELECT * FROM skills").all();
+    res.json(skills);
+  });
+
+  app.get("/api/projects", (req, res) => {
+    const projects = db.prepare("SELECT * FROM projects").all() as any[];
+    const formattedProjects = projects.map(p => ({
+      ...p,
+      tags: p.tags ? JSON.parse(p.tags) : []
+    }));
+    res.json(formattedProjects);
+  });
+
+  // Vite middleware for development
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+startServer();
